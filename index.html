@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>خريطة مترو القاهرة الكاملة</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f0f0f0; color: #333; padding: 20px; }
+    .controls { margin-bottom: 20px; }
+    select, button { padding: 8px; font-size: 16px; }
+    #routeCard { margin-top: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 8px; background: #fff; display: none; }
+    .line1 { color: #ff0000; }
+    .line2 { color: #00bfff; }
+    .line3 { color: #00cc00; }
+  </style>
+</head>
+<body>
+  <h1>خريطة مترو القاهرة</h1>
+  <div class="controls">
+    من: <select id="fromSelect"></select>
+    إلى: <select id="toSelect"></select>
+    <button onclick="showRoute()">عرض المسار</button>
+  </div>
+  <div id="routeCard"></div>
+
+  <script>
+    // بعض محطات من مترو القاهرة بناءً على قائمة المحطات :contentReference[oaicite:1]{index=1}
+    const stations = {
+      // الخط 1
+      L1_Helwan: 'حلوان', L1_AinHelwan: 'عين حلوان', L1_HelwanUniversity: 'جامعة حلوان',
+      L1_Zaitoun: 'الهضبة / الزيتون', L1_Matareya: 'المطرية', L1_SarayQobba: 'سراي القبة',
+      L1_HammamatQobba: 'حمامات القبة', L1_KobriQobba: 'كوبري القبة', L1_ManshietElSadr: 'منشية الصدر',
+      L1_Demerdash: 'الدمرداش', L1_Ghamra: 'غمرة', L1_Shohadaa: 'الشهداء',
+      L1_Orabi: 'أورابي', L1_Nasser: 'جمال عبد الناصر', L1_Sadat: 'السادات / ميدان التحرير',
+      L1_SaadZaghloul: 'سعد زغلول', L1_SayedaZeinab: 'السيدة زينب', L1_MalekElSaleh: 'الملك الصالح',
+      L1_MarGirgis: 'مار جرجس', L1_ElZahraa: 'الزهراء', L1_DarElSalam: 'دار السلام',
+      L1_HadayekMaadi: 'حدائق المعادي', L1_Maadi: 'المعادي', L1_SakanatMaadi: 'ثكنات المعادي',
+      L1_ToraElBalad: 'طرة البلد', L1_Kozzika: 'كوزيكا', L1_ToraElAsmant: 'طرة الأسمنت',
+      L1_ElMaasara: 'المعصرة', L1_HadayekHelwan: 'حدائق حلوان', L1_WadiHof: 'وادي حوف',
+
+      // الخط 2
+      L2_ShobraElKheima: 'شبرا الخيمة', L2_ElMansheyya: 'المنشية', L2_AlNozha: 'النزهة',
+      L2_HadayeqElMaadi: 'حدائق المعادي', L2_Giza: 'الجيزة', L2_Faisal: 'فيصل',
+      L2_CairoUniversity: 'جامعة القاهرة', L2_Ataba: 'العتبة', L2_Shohadaa2: 'الشهداء (خط 2)',
+      L2_Asafra: 'أسافرا', L2_Masara: 'المسرة', L2_RodElFarg: 'روض الفرج', L2_SanataTereza: 'سانتا تريزا',
+      L2_AlKhalifa: 'الخلفاوي', L2_AlMothallat: 'المظلات', L2_Agriculture: 'كلية الزراعة',
+
+      // الخط 3 (بعض المحطات + محطات حديثة) :contentReference[oaicite:2]{index=2}
+      L3_AdlyMansour: 'عدلي منصور', L3_Abdou: 'عبده باشا',
+      L3_Geish: 'الجيش', L3_BabShaariya: 'باب الشعرية', L3_CairoUniversity: 'جامعة القاهرة',
+      L3_SafaaHegazy: 'صفاء حجازي', L3_KitKat: 'كِتكات', L3_AlKouba: 'الدقي / الكوبة', 
+      L3_ElTawfikia: 'التوفيقية', L3_WadiElNil: 'وادي النيل', L3_ArabLeagueUni: 'جامعة الدول العربية', L3_Bulaq: 'بولاق الدكرور'
+    };
+
+    // الربط (graph) بسيط لتوضيح فقط بعض التوصيلات
+    const graph = {
+      // خط 1
+      L1_Helwan: ['L1_AinHelwan'],
+      L1_AinHelwan: ['L1_Helwan', 'L1_HelwanUniversity'],
+      L1_HelwanUniversity: ['L1_AinHelwan', 'L1_WadiHof'],
+      L1_WadiHof: ['L1_HadayekHelwan'],
+      L1_HadayekHelwan: ['L1_WadiHof', 'L1_ElMaasara'],
+      L1_ElMaasara: ['L1_HadayekHelwan', 'L1_ToraElAsmant'],
+      L1_ToraElAsmant: ['L1_ElMaasara', 'L1_Kozzika'],
+      L1_Kozzika: ['L1_ToraElAsmant', 'L1_ToraElBalad'],
+      L1_ToraElBalad: ['L1_Kozzika', 'L1_SakanatMaadi'],
+      L1_SakanatMaadi: ['L1_ToraElBalad', 'L1_Maadi'],
+      L1_Maadi: ['L1_SakanatMaadi', 'L1_HadayekMaadi'],
+      L1_HadayekMaadi: ['L1_Maadi', 'L1_DarElSalam'],
+      L1_DarElSalam: ['L1_HadayekMaadi', 'L1_ElZahraa'],
+      L1_ElZahraa: ['L1_DarElSalam', 'L1_MarGirgis'],
+      L1_MarGirgis: ['L1_ElZahraa', 'L1_MalekElSaleh'],
+      L1_MalekElSaleh: ['L1_MarGirgis', 'L1_SayedaZeinab'],
+      L1_SayedaZeinab: ['L1_MalekElSaleh', 'L1_SaadZaghloul'],
+      L1_SaadZaghloul: ['L1_SayedaZeinab', 'L1_Sadat'],
+      L1_Sadat: ['L1_SaadZaghloul', 'L1_Nasser'],
+      L1_Nasser: ['L1_Sadat', 'L1_Shohadaa'],
+      L1_Shohadaa: ['L1_Nasser', 'L1_Orabi'],
+      L1_Orabi: ['L1_Shohadaa', 'L1_Demerdash'],
+      L1_Demerdash: ['L1_Ghamra'],
+      L1_Ghamra: ['L1_Demerdash'],
+
+      // خط 2
+      L2_ShobraElKheima: ['L2_AlMothallat'],
+      L2_AlMothallat: ['L2_ShobraElKheima', 'L2_Asafra'],
+      L2_Asafra: ['L2_AlMothallat', 'L2_Masara'],
+      L2_Masara: ['L2_Asafra', 'L2_CairoUniversity'],
+      L2_CairoUniversity: ['L2_Masara', 'L2_Ataba'],
+      L2_Ataba: ['L2_CairoUniversity', 'L2_SanataTereza', 'L3_BabShaariya'],
+      L2_SanataTereza: ['L2_Ataba', 'L2_ShobraElKheima'],
+      // إضافة نقطة تبادلية مع الخط 1
+      L2_Shohadaa2: ['L1_Shohadaa'],
+
+      // خط 3
+      L3_AdlyMansour: ['L3_Abdou'],
+      L3_Abdou: ['L3_AdlyMansour', 'L3_Geish'],
+      L3_Geish: ['L3_Abdou', 'L3_BabShaariya'],
+      L3_BabShaariya: ['L3_Geish', 'L3_CairoUniversity'],
+      L3_CairoUniversity: ['L3_BabShaariya', 'L3_ArabLeagueUni', 'L2_CairoUniversity'],
+      L3_ArabLeagueUni: ['L3_CairoUniversity', 'L3_WadiElNil'],
+      L3_WadiElNil: ['L3_ArabLeagueUni', 'L3_ElTawfikia'],
+      L3_ElTawfikia: ['L3_WadiElNil', 'L3_Bulaq'],
+      L3_Bulaq: ['L3_ElTawfikia'],
+      L3_SafaaHegazy: ['L3_BabShaariya'],  // تقريب بسيط
+      L3_KitKat: ['L3_CairoUniversity']
+    };
+
+    const fromSelect = document.getElementById('fromSelect');
+    const toSelect = document.getElementById('toSelect');
+    Object.keys(stations).forEach(id => {
+      const o1 = document.createElement('option');
+      o1.value = id;
+      o1.textContent = stations[id];
+      fromSelect.appendChild(o1);
+      const o2 = document.createElement('option');
+      o2.value = id;
+      o2.textContent = stations[id];
+      toSelect.appendChild(o2);
+    });
+
+    function findPath(start, end) {
+      const queue = [[start]];
+      const visited = new Set([start]);
+      while (queue.length) {
+        const path = queue.shift();
+        const node = path[path.length - 1];
+        if (node === end) return path;
+        (graph[node] || []).forEach(nei => {
+          if (!visited.has(nei)) {
+            visited.add(nei);
+            queue.push([...path, nei]);
+          }
+        });
+      }
+      return null;
+    }
+
+    function showRoute() {
+      const from = fromSelect.value;
+      const to = toSelect.value;
+      const path = findPath(from, to);
+      const card = document.getElementById('routeCard');
+      if (!path) {
+        alert('ما فيش مسار بين المحطتين ضمن المحطات المضافة.');
+        card.style.display = 'none';
+        return;
+      }
+      card.style.display = 'block';
+      card.innerHTML = '<h3>المسار:</h3><p>' + path.map(id => {
+        let cls = '';
+        if (id.startsWith('L1_')) cls = 'line1';
+        else if (id.startsWith('L2_')) cls = 'line2';
+        else if (id.startsWith('L3_')) cls = 'line3';
+        return `<span class="${cls}">${stations[id]}</span>`;
+      }).join(' → ') + '</p>';
+    }
+  </script>
+</body>
+</html>
